@@ -1,9 +1,12 @@
 package multipartestutils
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 )
@@ -11,7 +14,9 @@ import (
 // Builder is a multipart builder.
 // It is not thread-safe.
 type Builder struct {
-	cbs []func(*multipart.Writer) error
+	pageURL string
+	eb      eventBody
+	cbs     []func(*multipart.Writer) error
 }
 
 // New constructs new multipart Builder.
@@ -93,4 +98,51 @@ func (b *Builder) Build() (string, io.ReadCloser) {
 	}()
 
 	return mw.FormDataContentType(), r
+}
+
+type EventFuncID struct {
+	ID     string   `json:"id,omitempty"`
+	Params []string `json:"params,omitempty"`
+}
+
+type Event struct {
+	Checked bool   `json:"checked,omitempty"` // For Checkbox
+	From    string `json:"from,omitempty"`    // For DatePicker
+	To      string `json:"to,omitempty"`      // For DatePicker
+	Value   string `json:"value,omitempty"`   // For Input, DatePicker
+}
+
+type eventBody struct {
+	EventFuncID EventFuncID `json:"eventFuncId,omitempty"`
+	Event       Event       `json:"event,omitempty"`
+}
+
+func (b *Builder) EventFunc(id string, params ...string) *Builder {
+	b.eb.EventFuncID.ID = id
+	b.eb.EventFuncID.Params = params
+	return b
+}
+
+func (b *Builder) Event(evt Event) *Builder {
+	b.eb.Event = evt
+	return b
+}
+
+func (b *Builder) PageURL(url string) *Builder {
+	b.pageURL = url
+	return b
+}
+
+func (b *Builder) BuildEventFuncRequest() (r *http.Request) {
+	eventBody, _ := json.Marshal(b.eb)
+	b.AddField("__event_data__", string(eventBody))
+
+	contentType, body := b.Build()
+	pu := b.pageURL
+	if len(b.pageURL) == 0 {
+		pu = "/"
+	}
+	r = httptest.NewRequest("POST", fmt.Sprintf("%s?__execute_event__=%s", pu, b.eb.EventFuncID.ID), body)
+	r.Header.Add("Content-Type", contentType)
+	return
 }
