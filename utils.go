@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"mime"
 	"mime/multipart"
-
-	"github.com/mxmCherry/multipartbuilder"
 )
 
 func CreateMultipartFileHeader(filename string, body []byte) *multipart.FileHeader {
-	contentType, rd := multipartbuilder.New().
+	contentType, rd := NewMultipartBuilder().
 		AddReader("test", filename, bytes.NewBuffer(body)).
 		Build()
 	defer rd.Close()
