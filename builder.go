@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 )
@@ -16,12 +17,15 @@ import (
 type Builder struct {
 	pageURL string
 	eb      eventBody
+	queries url.Values
 	cbs     []func(*multipart.Writer) error
 }
 
 // New constructs new multipart Builder.
 func NewMultipartBuilder() *Builder {
-	return &Builder{}
+	return &Builder{
+		queries: url.Values{},
+	}
 }
 
 // AddField adds multipart field.
@@ -113,13 +117,21 @@ type Event struct {
 }
 
 type eventBody struct {
-	EventFuncID EventFuncID `json:"eventFuncId,omitempty"`
-	Event       Event       `json:"event,omitempty"`
+	Event Event `json:"event,omitempty"`
 }
 
-func (b *Builder) EventFunc(id string, params ...string) *Builder {
-	b.eb.EventFuncID.ID = id
-	b.eb.EventFuncID.Params = params
+func (b *Builder) EventFunc(id string) *Builder {
+	b.queries["__execute_event__"] = []string{id}
+	return b
+}
+
+func (b *Builder) Query(key string, value string) *Builder {
+	b.queries[key] = []string{value}
+	return b
+}
+
+func (b *Builder) Queries(v url.Values) *Builder {
+	b.queries = v
 	return b
 }
 
@@ -142,7 +154,7 @@ func (b *Builder) BuildEventFuncRequest() (r *http.Request) {
 	if len(b.pageURL) == 0 {
 		pu = "/"
 	}
-	r = httptest.NewRequest("POST", fmt.Sprintf("%s?__execute_event__=%s", pu, b.eb.EventFuncID.ID), body)
+	r = httptest.NewRequest("POST", fmt.Sprintf("%s?%s", pu, b.queries.Encode()), body)
 	r.Header.Add("Content-Type", contentType)
 	return
 }

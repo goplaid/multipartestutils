@@ -24,3 +24,15 @@ func TestCreateMultipartFileHeader(t *testing.T) {
 		t.Error(string(content))
 	}
 }
+
+func TestBuilder_BuildEventFuncRequest(t *testing.T) {
+	r := multipartestutils.NewMultipartBuilder().
+		EventFunc("hello").
+		Query("id", "123").
+		Query("model", "Customer").
+		BuildEventFuncRequest()
+
+	if r.URL.String() != "/?__execute_event__=hello&id=123&model=Customer" {
+		t.Error(r.URL.String())
+	}
+}
